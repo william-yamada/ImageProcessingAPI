@@ -1,0 +1,31 @@
+# Add Swagger UI support via static route or integrate with Swagger UI viewer
+openapi: 3.0.0\info:
+  title: Image Processor API
+  version: 1.0.0
+paths:
+  /status:
+    get:
+      summary: API health check
+      responses:
+        '200':
+          description: OK
+  /process:
+    post:
+      summary: Process an image
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                image:
+                  type: array
+                  items:
+                    type: integer
+                width:
+                  type: integer
+                height:
+                  type: integer
+      responses:
+        '200':
+          description: Processed image
