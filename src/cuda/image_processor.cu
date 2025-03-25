@@ -2,9 +2,20 @@
 #include <cuda_runtime.h>
 #include <iostream>
 
-__global__ void invert_kernel(unsigned char* data, int size) {
-    int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (idx < size) data[idx] = 255 - data[idx];
+__global__ void blur_kernel(unsigned char* input, unsigned char* output, int width, int height) {
+    int x = blockIdx.x * blockDim.x + threadIdx.x;
+    int y = blockIdx.y * blockDim.y + threadIdx.y;
+    if (x >= 1 && x < width - 1 && y >= 1 && y < height - 1) {
+        int sum = 0;
+        for (int ky = -1; ky <= 1; ++ky) {
+            for (int kx = -1; kx <= 1; ++kx) {
+                int ix = x + kx;
+                int iy = y + ky;
+                sum += input[iy * width + ix];
+            }
+        }
+        output[y * width + x] = static_cast<unsigned char>(sum / 9);
+    }
 }
 
 bool cuda_available() {
@@ -14,12 +25,18 @@ bool cuda_available() {
 }
 
 std::vector<unsigned char> CUDAImageProcessor::process(const std::vector<unsigned char>& image, int width, int height) {
-    std::vector<unsigned char> output(image.size());
-    unsigned char* d_image;
-    cudaMalloc(&d_image, image.size());
-    cudaMemcpy(d_image, image.data(), image.size(), cudaMemcpyHostToDevice);
-    invert_kernel<<<(image.size()+255)/256, 256>>>(d_image, image.size());
-    cudaMemcpy(output.data(), d_image, image.size(), cudaMemcpyDeviceToHost);
-    cudaFree(d_image);
+    std::vector<unsigned char> output(image.size(), 0);
+    unsigned char *d_input, *d_output;
+    cudaMalloc(&d_input, image.size());
+    cudaMalloc(&d_output, image.size());
+    cudaMemcpy(d_input, image.data(), image.size(), cudaMemcpyHostToDevice);
+
+    dim3 threads(16, 16);
+    dim3 blocks((width + 15) / 16, (height + 15) / 16);
+    blur_kernel<<<blocks, threads>>>(d_input, d_output, width, height);
+
+    cudaMemcpy(output.data(), d_output, image.size(), cudaMemcpyDeviceToHost);
+    cudaFree(d_input);
+    cudaFree(d_output);
     return output;
 }
